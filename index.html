@@ -126,12 +126,7 @@
     </div>
   </div>
 
-  
-  <!-- 1회용 임포트 버튼 -->
-  <div id="import-wrap" style="padding:12px 16px;background:#FDF3E0;border-bottom:1px solid #E8E6E0;text-align:center;">
-    <p style="font-size:12px;color:#C07020;margin-bottom:8px;">과거 데이터(2~5월) 가져오기 — 한 번만 누르세요!</p>
-    <button id="import-btn" onclick="importData()" style="padding:10px 24px;background:#1A1A18;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">데이터 가져오기</button>
-  </div>
+
 <div class="tab-bar">
     <button class="tab active" onclick="showTab('record')">기록</button>
     <button class="tab" onclick="showTab('budget')">예산</button>
@@ -148,7 +143,7 @@
         </div>
         <div class="amount-input-wrap">
           <span>₩</span>
-          <input class="amount-input" type="number" id="inp-amount" placeholder="0" inputmode="numeric" />
+          <input class="amount-input" type="text" id="inp-amount" placeholder="0" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')" />
         </div>
         <div class="cat-grid" id="cat-grid"></div>
         <input class="date-input" type="date" id="inp-date" />
@@ -281,7 +276,7 @@ function renderCatGrid() {
 }
 
 window.addTx = async function() {
-  const amt = parseFloat(document.getElementById('inp-amount').value);
+  const amt = parseFloat(document.getElementById('inp-amount').value.replace(/,/g,''));
   if(!amt||isNaN(amt)||amt<=0){ document.getElementById('inp-amount').focus(); return; }
   const memo = document.getElementById('inp-memo').value.trim();
   const date = document.getElementById('inp-date').value || new Date().toISOString().slice(0,10);
@@ -291,18 +286,10 @@ window.addTx = async function() {
     await addDoc(collection(db,'transactions'), { type:txType, cat:selectedCat, amount:amt, memo, date, createdAt: Date.now() });
     document.getElementById('inp-amount').value = '';
     document.getElementById('inp-memo').value = '';
-    checkBudgetAlert(selectedCat);
   } catch(e) { alert('저장 실패: '+e.message); }
   btn.disabled = false; btn.textContent = '추가';
 };
 
-function checkBudgetAlert(cat) {
-  if(txType!=='expense') return;
-  const b = budgets[cat]||0;
-  if(!b) return;
-  const spent = getTxs(curYear,curMonth).filter(t=>t.type==='expense'&&t.cat===cat).reduce((s,t)=>s+t.amount,0);
-  if(spent > b) setTimeout(()=>alert('⚠️ '+cat+' 예산을 초과했어요!\n예산: '+fmt(b)+'\n지출: '+fmt(spent)),100);
-}
 
 window.deleteTx = async function(id) {
   if(!confirm('삭제할까요?')) return;
@@ -381,7 +368,7 @@ function renderBudget() {
       <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
       <div class="budget-set-row">
         <span class="budget-set-label">예산</span>
-        <input class="budget-set-input" type="number" inputmode="numeric" placeholder="금액 입력" value="${budget||''}" onchange="setBudget('${c.name}',this.value)" />
+        <input class="budget-set-input" type="text" inputmode="numeric" placeholder="금액 입력" value="${budget ? Math.round(budget).toLocaleString('ko-KR') : ''}" onchange="setBudget('${c.name}', this.value.replace(/,/g,''))" onfocus="this.value=this.value.replace(/,/g,'')" onblur="if(this.value) this.value=Number(this.value.replace(/,/g,'')).toLocaleString('ko-KR')" />
         <span class="budget-set-label">원</span>
       </div>
     </div>`;
@@ -425,384 +412,6 @@ function renderCharts() {
       scales:{x:{grid:{display:false},ticks:{font:{size:11},color:'#8A8880'}},y:{grid:{color:'#F0EEE8'},ticks:{font:{size:11},color:'#8A8880',callback:v=>v===0?'0':'₩'+Math.round(v/10000)+'만'}}}}
   });
 }
-
-
-window.importData = async function() {
-  if(!confirm("과거 데이터 355건을 Firebase에 업로드할까요?\n(이미 업로드했다면 누르지 마세요)")) return;
-  const btn = document.getElementById("import-btn");
-  btn.disabled = true;
-  const data = [
-  // 2월
-  {date:"2026-02-01",type:"expense",cat:"식비",memo:"아보카도오일",amount:17980},
-  {date:"2026-02-02",type:"expense",cat:"생활비",memo:"우지커피",amount:2800},
-  {date:"2026-02-02",type:"expense",cat:"생활비",memo:"널핏 신발",amount:74900},
-  {date:"2026-02-03",type:"expense",cat:"생활비",memo:"책 구매",amount:3500},
-  {date:"2026-02-03",type:"expense",cat:"고정지출",memo:"챗지피티",amount:32862},
-  {date:"2026-02-03",type:"expense",cat:"생활비",memo:"전시회",amount:26600},
-  {date:"2026-02-03",type:"expense",cat:"생활비",memo:"친구만남(희영/혜림)",amount:37400},
-  {date:"2026-02-03",type:"expense",cat:"생활비",memo:"프린트비",amount:200},
-  {date:"2026-02-03",type:"expense",cat:"비상금",memo:"분당서울대 진료비",amount:20800},
-  {date:"2026-02-04",type:"expense",cat:"생활비",memo:"마켓컬리 화장품",amount:48320},
-  {date:"2026-02-04",type:"expense",cat:"생활비",memo:"네이버 쿠키",amount:5000},
-  {date:"2026-02-05",type:"expense",cat:"생활비",memo:"전기캔들라이트",amount:9900},
-  {date:"2026-02-06",type:"expense",cat:"식비",memo:"쿠페이머니충전",amount:100000},
-  {date:"2026-02-07",type:"expense",cat:"생활비",memo:"마사지볼",amount:4950},
-  {date:"2026-02-07",type:"expense",cat:"고정지출",memo:"컬리구독",amount:1900},
-  {date:"2026-02-07",type:"expense",cat:"식비",memo:"하나로마트",amount:14400},
-  {date:"2026-02-08",type:"expense",cat:"생활비",memo:"하이패스",amount:10000},
-  {date:"2026-02-08",type:"expense",cat:"식비",memo:"버터/빵/생필품",amount:46350},
-  {date:"2026-02-08",type:"expense",cat:"생활비",memo:"빨래바구니",amount:17900},
-  {date:"2026-02-08",type:"expense",cat:"비상금",memo:"영양제",amount:116238},
-  {date:"2026-02-08",type:"expense",cat:"생활비",memo:"바크 신발",amount:66530},
-  {date:"2026-02-09",type:"expense",cat:"비상금",memo:"출장마사지",amount:160000},
-  {date:"2026-02-09",type:"expense",cat:"생활비",memo:"붕어빵",amount:2000},
-  {date:"2026-02-10",type:"expense",cat:"고정지출",memo:"엄마신용대출이자",amount:306000},
-  {date:"2026-02-10",type:"expense",cat:"경조사",memo:"젤리켓 키링",amount:38000},
-  {date:"2026-02-11",type:"expense",cat:"생활비",memo:"친구만남(타키토)",amount:16750},
-  {date:"2026-02-12",type:"expense",cat:"생활비",memo:"유진생필품",amount:32800},
-  {date:"2026-02-12",type:"expense",cat:"생활비",memo:"친구만남(미가훠거)",amount:48000},
-  {date:"2026-02-12",type:"expense",cat:"생활비",memo:"택시이용",amount:8400},
-  {date:"2026-02-12",type:"expense",cat:"생활비",memo:"문화생활(굿즈)",amount:33000},
-  {date:"2026-02-12",type:"income",cat:"급여",memo:"떡값",amount:1115330},
-  {date:"2026-02-13",type:"expense",cat:"생활비",memo:"실리콘장갑",amount:5370},
-  {date:"2026-02-13",type:"expense",cat:"생활비",memo:"리더회식 후 귀가택시",amount:87000},
-  {date:"2026-02-13",type:"expense",cat:"식비",memo:"이마트 장보기",amount:20370},
-  {date:"2026-02-13",type:"expense",cat:"식비",memo:"신세계백화점 장보기",amount:9720},
-  {date:"2026-02-13",type:"expense",cat:"식비",memo:"bhc 치킨",amount:3000},
-  {date:"2026-02-13",type:"expense",cat:"생활비",memo:"수선비",amount:5000},
-  {date:"2026-02-13",type:"expense",cat:"생활비",memo:"슬로웨어",amount:1070000},
-  {date:"2026-02-13",type:"income",cat:"급여",memo:"유진 월급",amount:3304515},
-  {date:"2026-02-14",type:"expense",cat:"생활비",memo:"로또",amount:10000},
-  {date:"2026-02-15",type:"expense",cat:"생활비",memo:"현대백화점 주차",amount:9000},
-  {date:"2026-02-15",type:"expense",cat:"생활비",memo:"현대백화점(핫도그)",amount:22900},
-  {date:"2026-02-15",type:"expense",cat:"생활비",memo:"현대백화점(블루보틀)",amount:14600},
-  {date:"2026-02-15",type:"expense",cat:"생활비",memo:"데이아웃(브런치)",amount:56000},
-  {date:"2026-02-16",type:"expense",cat:"생활비",memo:"준오헤어",amount:35000},
-  {date:"2026-02-16",type:"expense",cat:"식비",memo:"하나로마트(호떡)",amount:5000},
-  {date:"2026-02-16",type:"expense",cat:"식비",memo:"하나로마트",amount:14890},
-  {date:"2026-02-16",type:"expense",cat:"생활비",memo:"도서 메뉴얼",amount:35000},
-  {date:"2026-02-18",type:"expense",cat:"생활비",memo:"콘밀",amount:5800},
-  {date:"2026-02-19",type:"expense",cat:"생활비",memo:"이지앤식스",amount:3000},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"통신비",amount:159390},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"엘지전자구독",amount:6900},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"엘지전자구독",amount:17500},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"엘지전자구독",amount:11800},
-  {date:"2026-02-19",type:"expense",cat:"생활비",memo:"샴푸",amount:14300},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"삼성생명 보험",amount:125880},
-  {date:"2026-02-19",type:"expense",cat:"비상금",memo:"영양제",amount:98999},
-  {date:"2026-02-19",type:"expense",cat:"비상금",memo:"영양제",amount:125999},
-  {date:"2026-02-19",type:"expense",cat:"경조사",memo:"유찬 용돈",amount:50000},
-  {date:"2026-02-19",type:"expense",cat:"고정지출",memo:"유진 통신비",amount:99660},
-  {date:"2026-02-20",type:"income",cat:"급여",memo:"성민급여",amount:4377220},
-  {date:"2026-02-20",type:"expense",cat:"생활비",memo:"로또",amount:5000},
-  {date:"2026-02-20",type:"expense",cat:"생활비",memo:"엄마 코 쿠팡",amount:40260},
-  {date:"2026-02-20",type:"expense",cat:"생활비",memo:"도마",amount:5000},
-  {date:"2026-02-20",type:"expense",cat:"고정지출",memo:"삼성생명 보험",amount:48870},
-  {date:"2026-02-21",type:"expense",cat:"생활비",memo:"토치, 붓",amount:14950},
-  {date:"2026-02-21",type:"expense",cat:"생활비",memo:"무쇠 브러쉬",amount:8640},
-  {date:"2026-02-22",type:"expense",cat:"생활비",memo:"정돈",amount:33000},
-  {date:"2026-02-22",type:"expense",cat:"생활비",memo:"CGV 팝콘",amount:16000},
-  {date:"2026-02-22",type:"expense",cat:"생활비",memo:"CGV영화(왕사남)",amount:30000},
-  {date:"2026-02-22",type:"expense",cat:"생활비",memo:"수수커피",amount:13100},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"신용대출상환이자",amount:37420},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"주택담보대출상환",amount:677000},
-  {date:"2026-02-23",type:"expense",cat:"생활비",memo:"전원주양말",amount:8980},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"운전자보험",amount:22420},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"바로알림서비스",amount:300},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"DB운전자보험",amount:15010},
-  {date:"2026-02-23",type:"expense",cat:"고정지출",memo:"한화손해보험",amount:101536},
-  {date:"2026-02-24",type:"expense",cat:"고정지출",memo:"아파트관리비",amount:454910},
-  {date:"2026-02-24",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1340},
-  {date:"2026-02-24",type:"expense",cat:"경조사",memo:"희성 생일선물",amount:72000},
-  {date:"2026-02-25",type:"income",cat:"기타수입",memo:"전자의료비",amount:101170},
-  {date:"2026-02-25",type:"expense",cat:"고정지출",memo:"화재보험",amount:30000},
-  {date:"2026-02-25",type:"expense",cat:"생활비",memo:"일반쓰레기봉투",amount:5000},
-  {date:"2026-02-25",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1140},
-  {date:"2026-02-25",type:"income",cat:"기타수입",memo:"당근",amount:35000},
-  {date:"2026-02-25",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1480},
-  {date:"2026-02-26",type:"income",cat:"기타수입",memo:"출자배당금",amount:1000},
-  {date:"2026-02-26",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1200},
-  {date:"2026-02-26",type:"income",cat:"기타수입",memo:"현대카드 캐쉬백",amount:15000},
-  {date:"2026-02-27",type:"expense",cat:"비상금",memo:"분당서울대병원",amount:28300},
-  {date:"2026-02-27",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1200},
-  {date:"2026-02-27",type:"income",cat:"기타수입",memo:"어머님 생일",amount:300000},
-  {date:"2026-02-27",type:"income",cat:"기타수입",memo:"경영성과급",amount:546661},
-  {date:"2026-02-28",type:"expense",cat:"식비",memo:"신세계 장보기(대파,레몬)",amount:4840},
-  {date:"2026-02-28",type:"expense",cat:"생활비",memo:"다이소",amount:5000},
-  // 3월
-  {date:"2026-03-01",type:"expense",cat:"생활비",memo:"pc방",amount:20000},
-  {date:"2026-03-01",type:"expense",cat:"식비",memo:"진간장, 달래",amount:11190},
-  {date:"2026-03-02",type:"expense",cat:"생활비",memo:"콘밀 커피/스콘",amount:9800},
-  {date:"2026-03-02",type:"expense",cat:"식비",memo:"컬리 식재료",amount:69070},
-  {date:"2026-03-02",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1300},
-  {date:"2026-03-03",type:"expense",cat:"생활비",memo:"교보문고",amount:17000},
-  {date:"2026-03-03",type:"expense",cat:"고정지출",memo:"챗지피티",amount:32874},
-  {date:"2026-03-03",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1700},
-  {date:"2026-03-04",type:"expense",cat:"생활비",memo:"분식",amount:5000},
-  {date:"2026-03-04",type:"expense",cat:"생활비",memo:"모르겠음",amount:700},
-  {date:"2026-03-04",type:"expense",cat:"생활비",memo:"우체국택배(엄마 약)",amount:4000},
-  {date:"2026-03-04",type:"expense",cat:"생활비",memo:"약국",amount:14200},
-  {date:"2026-03-04",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1300},
-  {date:"2026-03-05",type:"expense",cat:"생활비",memo:"우산",amount:6000},
-  {date:"2026-03-05",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2240},
-  {date:"2026-03-05",type:"expense",cat:"생활비",memo:"커피",amount:4820},
-  {date:"2026-03-06",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1880},
-  {date:"2026-03-07",type:"expense",cat:"생활비",memo:"휴지롤티슈",amount:15200},
-  {date:"2026-03-07",type:"expense",cat:"고정지출",memo:"컬리구독",amount:1900},
-  {date:"2026-03-07",type:"expense",cat:"생활비",memo:"레이드 카페",amount:25000},
-  {date:"2026-03-07",type:"expense",cat:"식비",memo:"장보기",amount:29620},
-  {date:"2026-03-07",type:"expense",cat:"식비",memo:"하나로마트",amount:27180},
-  {date:"2026-03-08",type:"expense",cat:"생활비",memo:"클라시코커피",amount:7000},
-  {date:"2026-03-08",type:"expense",cat:"생활비",memo:"바디워시",amount:6800},
-  {date:"2026-03-08",type:"expense",cat:"생활비",memo:"이디야커피",amount:7400},
-  {date:"2026-03-10",type:"expense",cat:"생활비",memo:"들기름",amount:18150},
-  {date:"2026-03-10",type:"expense",cat:"고정지출",memo:"엄마대출",amount:306000},
-  {date:"2026-03-10",type:"income",cat:"기타수입",memo:"전자의료비",amount:5240},
-  {date:"2026-03-11",type:"expense",cat:"생활비",memo:"아이스크림",amount:9200},
-  {date:"2026-03-11",type:"expense",cat:"생활비",memo:"콘밀",amount:4000},
-  {date:"2026-03-11",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1460},
-  {date:"2026-03-12",type:"expense",cat:"생활비",memo:"하이패스",amount:1300},
-  {date:"2026-03-12",type:"expense",cat:"생활비",memo:"성민 회사 칫솔",amount:3150},
-  {date:"2026-03-12",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1480},
-  {date:"2026-03-13",type:"expense",cat:"생활비",memo:"빨라쪼 커피",amount:4820},
-  {date:"2026-03-13",type:"expense",cat:"생활비",memo:"지쿠 킥보드",amount:1625},
-  {date:"2026-03-14",type:"expense",cat:"식비",memo:"장보기",amount:17970},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"시장 주차비",amount:4500},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"트웰비 스무디",amount:23750},
-  {date:"2026-03-14",type:"expense",cat:"식비",memo:"트웰비 장보기",amount:240640},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"트웰비 베통 소금빵",amount:3700},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"트웰비 스시",amount:23280},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"트웰비 초콜렛",amount:9500},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"시장 칼국수",amount:15000},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"꽈베기",amount:2000},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"호떡",amount:3000},
-  {date:"2026-03-14",type:"expense",cat:"생활비",memo:"쿠키",amount:5000},
-  {date:"2026-03-14",type:"expense",cat:"식비",memo:"쿠팡 장보기",amount:17970},
-  {date:"2026-03-15",type:"expense",cat:"생활비",memo:"피씨방",amount:20000},
-  {date:"2026-03-15",type:"expense",cat:"생활비",memo:"회사식비",amount:4500},
-  {date:"2026-03-16",type:"expense",cat:"고정지출",memo:"성민통신비",amount:159390},
-  {date:"2026-03-16",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:17500},
-  {date:"2026-03-16",type:"expense",cat:"생활비",memo:"커피",amount:3000},
-  {date:"2026-03-16",type:"expense",cat:"고정지출",memo:"유진보험비",amount:125880},
-  {date:"2026-03-17",type:"expense",cat:"식비",memo:"쿠팡 장보기",amount:30680},
-  {date:"2026-03-17",type:"expense",cat:"생활비",memo:"커피",amount:10000},
-  {date:"2026-03-17",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:11800},
-  {date:"2026-03-17",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:6900},
-  {date:"2026-03-17",type:"income",cat:"급여",memo:"유진월급",amount:3224007},
-  {date:"2026-03-18",type:"expense",cat:"생활비",memo:"일회용품",amount:30999},
-  {date:"2026-03-18",type:"expense",cat:"식비",memo:"컬리 식재료",amount:31999},
-  {date:"2026-03-19",type:"income",cat:"기타수입",memo:"쿠팡환불",amount:3900},
-  {date:"2026-03-19",type:"income",cat:"급여",memo:"성민월급",amount:4065360},
-  {date:"2026-03-19",type:"expense",cat:"고정지출",memo:"유진통신비",amount:97160},
-  {date:"2026-03-20",type:"expense",cat:"생활비",memo:"교보문고",amount:9000},
-  {date:"2026-03-20",type:"expense",cat:"고정지출",memo:"유진보험비",amount:48870},
-  {date:"2026-03-21",type:"expense",cat:"생활비",memo:"주유",amount:5385},
-  {date:"2026-03-21",type:"expense",cat:"생활비",memo:"뚜레주르 빵",amount:6750},
-  {date:"2026-03-21",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2060},
-  {date:"2026-03-21",type:"income",cat:"기타수입",memo:"캐시백",amount:5241},
-  {date:"2026-03-22",type:"expense",cat:"생활비",memo:"pc방",amount:20000},
-  {date:"2026-03-23",type:"expense",cat:"고정지출",memo:"신용대출상환이자",amount:31380},
-  {date:"2026-03-23",type:"expense",cat:"고정지출",memo:"주택담보대출상환",amount:677000},
-  {date:"2026-03-23",type:"expense",cat:"고정지출",memo:"운전자보험",amount:22420},
-  {date:"2026-03-23",type:"expense",cat:"고정지출",memo:"DB손해보험",amount:15010},
-  {date:"2026-03-23",type:"expense",cat:"고정지출",memo:"한화손해보험",amount:101536},
-  {date:"2026-03-24",type:"expense",cat:"생활비",memo:"회식",amount:93000},
-  {date:"2026-03-24",type:"expense",cat:"비상금",memo:"분당서울대병원",amount:20800},
-  {date:"2026-03-24",type:"expense",cat:"비상금",memo:"분당서울대병원",amount:13200},
-  {date:"2026-03-24",type:"expense",cat:"비상금",memo:"분당서울대병원",amount:7900},
-  {date:"2026-03-24",type:"expense",cat:"생활비",memo:"빨라쪼 커피",amount:4820},
-  {date:"2026-03-24",type:"expense",cat:"생활비",memo:"편의점",amount:3500},
-  {date:"2026-03-25",type:"expense",cat:"고정지출",memo:"화재보험",amount:30000},
-  {date:"2026-03-25",type:"expense",cat:"비상금",memo:"함춘",amount:26800},
-  {date:"2026-03-26",type:"expense",cat:"생활비",memo:"결혼기념일",amount:78540},
-  {date:"2026-03-26",type:"expense",cat:"생활비",memo:"결혼기념일",amount:40850},
-  {date:"2026-03-26",type:"expense",cat:"생활비",memo:"결혼기념일",amount:84000},
-  {date:"2026-03-26",type:"expense",cat:"생활비",memo:"결혼기념일 택시",amount:6100},
-  {date:"2026-03-26",type:"expense",cat:"비상금",memo:"분당차병원",amount:250000},
-  {date:"2026-03-26",type:"expense",cat:"고정지출",memo:"아파트관리비",amount:368650},
-  {date:"2026-03-26",type:"expense",cat:"생활비",memo:"유치회관",amount:24000},
-  {date:"2026-03-26",type:"expense",cat:"비상금",memo:"비타민C",amount:24000},
-  {date:"2026-03-26",type:"expense",cat:"경조사",memo:"강혜빈",amount:50000},
-  {date:"2026-03-28",type:"expense",cat:"생활비",memo:"미용실선결제",amount:10000},
-  {date:"2026-03-28",type:"expense",cat:"생활비",memo:"랄루차",amount:47700},
-  {date:"2026-03-29",type:"expense",cat:"생활비",memo:"타키토",amount:11494},
-  {date:"2026-03-29",type:"expense",cat:"생활비",memo:"피씨방",amount:20000},
-  {date:"2026-03-30",type:"expense",cat:"생활비",memo:"탕화쿵푸",amount:20800},
-  {date:"2026-03-30",type:"expense",cat:"생활비",memo:"올리브영(퍼프)",amount:13300},
-  {date:"2026-03-31",type:"expense",cat:"생활비",memo:"네이버 쿠키",amount:5000},
-  {date:"2026-03-31",type:"income",cat:"기타수입",memo:"현대카드 캐쉬백",amount:15000},
-  // 4월
-  {date:"2026-04-01",type:"expense",cat:"비상금",memo:"배란초음파 병원비",amount:41100},
-  {date:"2026-04-01",type:"expense",cat:"비상금",memo:"영양제",amount:91381},
-  {date:"2026-04-02",type:"expense",cat:"생활비",memo:"뚜레주르 빵",amount:3400},
-  {date:"2026-04-03",type:"expense",cat:"고정지출",memo:"챗지피티",amount:33999},
-  {date:"2026-04-03",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1880},
-  {date:"2026-04-03",type:"expense",cat:"생활비",memo:"뚜레주르 빵",amount:4400},
-  {date:"2026-04-04",type:"expense",cat:"생활비",memo:"준오헤어",amount:35000},
-  {date:"2026-04-04",type:"expense",cat:"생활비",memo:"준오헤어",amount:28000},
-  {date:"2026-04-04",type:"expense",cat:"생활비",memo:"교보문고",amount:12500},
-  {date:"2026-04-04",type:"expense",cat:"생활비",memo:"베이직베이커리",amount:20800},
-  {date:"2026-04-05",type:"expense",cat:"생활비",memo:"클라시코 커피",amount:8730},
-  {date:"2026-04-05",type:"expense",cat:"생활비",memo:"주차비",amount:1200},
-  {date:"2026-04-05",type:"expense",cat:"생활비",memo:"용인시장 나들이",amount:24000},
-  {date:"2026-04-05",type:"expense",cat:"생활비",memo:"포시즌키친 광교",amount:49800},
-  {date:"2026-04-07",type:"expense",cat:"생활비",memo:"피씨방",amount:20000},
-  {date:"2026-04-07",type:"expense",cat:"고정지출",memo:"마켓컬리",amount:1900},
-  {date:"2026-04-07",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1455},
-  {date:"2026-04-08",type:"expense",cat:"비상금",memo:"분당서울대병원",amount:129450},
-  {date:"2026-04-09",type:"expense",cat:"식비",memo:"쿠팡",amount:46590},
-  {date:"2026-04-09",type:"income",cat:"기타수입",memo:"서울보증보험",amount:84450},
-  {date:"2026-04-09",type:"expense",cat:"생활비",memo:"대추차",amount:17400},
-  {date:"2026-04-09",type:"expense",cat:"생활비",memo:"뚜레주르 빵",amount:4320},
-  {date:"2026-04-10",type:"expense",cat:"식비",memo:"쿠팡",amount:19000},
-  {date:"2026-04-10",type:"expense",cat:"생활비",memo:"피씨방",amount:10000},
-  {date:"2026-04-10",type:"expense",cat:"생활비",memo:"회사식비",amount:87000},
-  {date:"2026-04-10",type:"expense",cat:"고정지출",memo:"엄마대출",amount:306000},
-  {date:"2026-04-11",type:"expense",cat:"생활비",memo:"렌즈세정액",amount:15600},
-  {date:"2026-04-11",type:"expense",cat:"생활비",memo:"콘밀",amount:3800},
-  {date:"2026-04-11",type:"expense",cat:"식비",memo:"쿠팡",amount:15600},
-  {date:"2026-04-11",type:"expense",cat:"생활비",memo:"염통꼬치",amount:10000},
-  {date:"2026-04-11",type:"expense",cat:"생활비",memo:"야장놀이",amount:18000},
-  {date:"2026-04-12",type:"expense",cat:"생활비",memo:"카페",amount:16000},
-  {date:"2026-04-12",type:"expense",cat:"생활비",memo:"케이크",amount:42000},
-  {date:"2026-04-12",type:"expense",cat:"생활비",memo:"화장품",amount:20999},
-  {date:"2026-04-12",type:"expense",cat:"생활비",memo:"화장품",amount:26999},
-  {date:"2026-04-13",type:"expense",cat:"생활비",memo:"피씨방",amount:20000},
-  {date:"2026-04-13",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2726},
-  {date:"2026-04-13",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1797},
-  {date:"2026-04-13",type:"expense",cat:"생활비",memo:"편의점",amount:3150},
-  {date:"2026-04-13",type:"expense",cat:"생활비",memo:"빨라쪼 커피",amount:10800},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"르쿠르제 선물",amount:37800},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"대구신세계 잠봉",amount:10260},
-  {date:"2026-04-14",type:"expense",cat:"비상금",memo:"대구 한약",amount:650000},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"대구 카페",amount:11600},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"대구 스시",amount:45000},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"대구 카페",amount:33000},
-  {date:"2026-04-14",type:"expense",cat:"생활비",memo:"주유비",amount:50000},
-  {date:"2026-04-15",type:"expense",cat:"고정지출",memo:"통신비",amount:159390},
-  {date:"2026-04-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:17500},
-  {date:"2026-04-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:11800},
-  {date:"2026-04-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:6900},
-  {date:"2026-04-15",type:"expense",cat:"식비",memo:"쿠팡",amount:9780},
-  {date:"2026-04-15",type:"expense",cat:"고정지출",memo:"유진 보험",amount:125880},
-  {date:"2026-04-15",type:"expense",cat:"생활비",memo:"들깨떡볶이",amount:20000},
-  {date:"2026-04-15",type:"expense",cat:"생활비",memo:"세탁소",amount:44000},
-  {date:"2026-04-15",type:"expense",cat:"생활비",memo:"네이버쿠키",amount:5000},
-  {date:"2026-04-16",type:"expense",cat:"식비",memo:"쿠팡",amount:5170},
-  {date:"2026-04-16",type:"expense",cat:"생활비",memo:"이마트에브리데이",amount:4980},
-  {date:"2026-04-16",type:"expense",cat:"생활비",memo:"편의점",amount:3150},
-  {date:"2026-04-16",type:"expense",cat:"생활비",memo:"빨라쪼커피",amount:4820},
-  {date:"2026-04-17",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1455},
-  {date:"2026-04-17",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1700},
-  {date:"2026-04-17",type:"income",cat:"급여",memo:"유진급여",amount:3627883},
-  {date:"2026-04-18",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1455},
-  {date:"2026-04-18",type:"expense",cat:"생활비",memo:"정자 야장",amount:48000},
-  {date:"2026-04-19",type:"expense",cat:"식비",memo:"쿠팡",amount:100000},
-  {date:"2026-04-19",type:"expense",cat:"생활비",memo:"네이버페이충전",amount:10000},
-  {date:"2026-04-19",type:"expense",cat:"생활비",memo:"메가박스",amount:17900},
-  {date:"2026-04-19",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1455},
-  {date:"2026-04-20",type:"expense",cat:"생활비",memo:"피씨방",amount:5000},
-  {date:"2026-04-20",type:"expense",cat:"생활비",memo:"유진 가방",amount:32000},
-  {date:"2026-04-20",type:"expense",cat:"고정지출",memo:"삼성생명",amount:48870},
-  {date:"2026-04-20",type:"expense",cat:"비상금",memo:"차 수리비",amount:78500},
-  {date:"2026-04-20",type:"expense",cat:"고정지출",memo:"유진 통신비",amount:102160},
-  {date:"2026-04-21",type:"income",cat:"급여",memo:"성민월급",amount:4362030},
-  {date:"2026-04-21",type:"expense",cat:"고정지출",memo:"주택담보대출상환",amount:677000},
-  {date:"2026-04-21",type:"expense",cat:"고정지출",memo:"운전자보험",amount:22420},
-  {date:"2026-04-21",type:"expense",cat:"고정지출",memo:"db손해보험",amount:15010},
-  {date:"2026-04-21",type:"expense",cat:"생활비",memo:"프린트비",amount:500},
-  {date:"2026-04-21",type:"expense",cat:"생활비",memo:"뚜레주르 빵",amount:3880},
-  {date:"2026-04-21",type:"expense",cat:"고정지출",memo:"한화손해보험",amount:101536},
-  {date:"2026-04-21",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1300},
-  {date:"2026-04-22",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1455},
-  {date:"2026-04-23",type:"expense",cat:"생활비",memo:"피씨방",amount:9200},
-  {date:"2026-04-23",type:"expense",cat:"생활비",memo:"피씨방",amount:5000},
-  {date:"2026-04-23",type:"expense",cat:"생활비",memo:"분당서울대병원",amount:10800},
-  {date:"2026-04-23",type:"expense",cat:"생활비",memo:"유진 친구",amount:57600},
-  {date:"2026-04-24",type:"expense",cat:"생활비",memo:"피씨방",amount:20000},
-  {date:"2026-04-24",type:"expense",cat:"고정지출",memo:"화재보험",amount:30000},
-  {date:"2026-04-24",type:"expense",cat:"생활비",memo:"포시즌스호텔",amount:285500},
-  {date:"2026-04-24",type:"expense",cat:"생활비",memo:"포시즌스호텔 밥",amount:404300},
-  {date:"2026-04-24",type:"expense",cat:"고정지출",memo:"관리비",amount:282860},
-  {date:"2026-04-24",type:"expense",cat:"생활비",memo:"스타벅스 충전",amount:50000},
-  {date:"2026-04-24",type:"expense",cat:"생활비",memo:"통행료",amount:2000},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"서울 주차",amount:8900},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"공평동꼼장어",amount:35000},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"본지르르",amount:13500},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"삼청수제비",amount:27000},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"역사박물관카페",amount:4000},
-  {date:"2026-04-25",type:"expense",cat:"생활비",memo:"포비 광화문",amount:20800},
-  {date:"2026-04-27",type:"expense",cat:"생활비",memo:"카카오바이크",amount:3000},
-  {date:"2026-04-29",type:"expense",cat:"생활비",memo:"카카오페이",amount:19187},
-  {date:"2026-04-29",type:"expense",cat:"생활비",memo:"편의점",amount:2600},
-  {date:"2026-04-29",type:"expense",cat:"생활비",memo:"유진 속옷",amount:78700},
-  {date:"2026-04-29",type:"expense",cat:"생활비",memo:"리디",amount:10000},
-  {date:"2026-04-29",type:"income",cat:"기타수입",memo:"cpr 강사",amount:180000},
-  {date:"2026-04-30",type:"expense",cat:"생활비",memo:"리디",amount:5000},
-  {date:"2026-04-30",type:"expense",cat:"생활비",memo:"탕화쿵푸",amount:7800},
-  {date:"2026-04-30",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2420},
-  {date:"2026-04-30",type:"expense",cat:"생활비",memo:"약국",amount:20600},
-  {date:"2026-04-30",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2420},
-  // 5월
-  {date:"2026-05-01",type:"expense",cat:"생활비",memo:"유진 친구",amount:15500},
-  {date:"2026-05-02",type:"expense",cat:"생활비",memo:"카카오바이크",amount:2426},
-  {date:"2026-05-02",type:"expense",cat:"생활비",memo:"편의점",amount:3500},
-  {date:"2026-05-03",type:"income",cat:"기타수입",memo:"cpr 강사",amount:180000},
-  {date:"2026-05-03",type:"expense",cat:"식비",memo:"기순도장세트",amount:100000},
-  {date:"2026-05-03",type:"expense",cat:"식비",memo:"신세계백화점 장보기",amount:41800},
-  {date:"2026-05-03",type:"expense",cat:"식비",memo:"신세계백화점",amount:9500},
-  {date:"2026-05-03",type:"expense",cat:"고정지출",memo:"챗지피티",amount:32999},
-  {date:"2026-05-03",type:"expense",cat:"생활비",memo:"빨라쪼커피",amount:4820},
-  {date:"2026-05-03",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1498},
-  {date:"2026-05-03",type:"expense",cat:"생활비",memo:"스타벅스 충전",amount:50000},
-  {date:"2026-05-04",type:"expense",cat:"생활비",memo:"네이버페이충전",amount:20000},
-  {date:"2026-05-04",type:"expense",cat:"생활비",memo:"현대백화점",amount:49800},
-  {date:"2026-05-04",type:"expense",cat:"식비",memo:"쿠팡 배달비",amount:100000},
-  {date:"2026-05-04",type:"expense",cat:"식비",memo:"쿠팡",amount:31290},
-  {date:"2026-05-04",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1214},
-  {date:"2026-05-04",type:"expense",cat:"식비",memo:"컬리 식재료",amount:33999},
-  {date:"2026-05-05",type:"expense",cat:"경조사",memo:"생일선물",amount:52000},
-  {date:"2026-05-05",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1700},
-  {date:"2026-05-06",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1700},
-  {date:"2026-05-07",type:"expense",cat:"고정지출",memo:"컬리페이",amount:1900},
-  {date:"2026-05-07",type:"expense",cat:"생활비",memo:"교통카드",amount:3100},
-  {date:"2026-05-07",type:"income",cat:"기타수입",memo:"칼스 알바",amount:300000},
-  {date:"2026-05-07",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1355},
-  {date:"2026-05-08",type:"expense",cat:"생활비",memo:"쿠팡 화장품",amount:12760},
-  {date:"2026-05-08",type:"expense",cat:"경조사",memo:"어버이날",amount:300000},
-  {date:"2026-05-08",type:"expense",cat:"생활비",memo:"준오헤어 판교",amount:10000},
-  {date:"2026-05-08",type:"expense",cat:"경조사",memo:"어버이날",amount:300000},
-  {date:"2026-05-08",type:"expense",cat:"생활비",memo:"분당서울대병원",amount:7600},
-  {date:"2026-05-08",type:"expense",cat:"생활비",memo:"카카오바이크",amount:1213},
-  {date:"2026-05-09",type:"expense",cat:"생활비",memo:"네이버쿠키",amount:5000},
-  {date:"2026-05-11",type:"expense",cat:"고정지출",memo:"엄마대출",amount:306000},
-  {date:"2026-05-12",type:"expense",cat:"생활비",memo:"쿠팡",amount:23620},
-  {date:"2026-05-14",type:"expense",cat:"생활비",memo:"쿠팡",amount:8900},
-  {date:"2026-05-15",type:"expense",cat:"고정지출",memo:"성민 통신비",amount:159390},
-  {date:"2026-05-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:6900},
-  {date:"2026-05-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:17500},
-  {date:"2026-05-15",type:"expense",cat:"고정지출",memo:"엘지구독료",amount:11800},
-  {date:"2026-05-15",type:"expense",cat:"생활비",memo:"쿠팡",amount:23900},
-  {date:"2026-05-15",type:"expense",cat:"생활비",memo:"카카오페이",amount:79000},
-  {date:"2026-05-16",type:"expense",cat:"생활비",memo:"카카오페이",amount:30000},
-  {date:"2026-05-19",type:"expense",cat:"경조사",memo:"아버님 생신",amount:200000},
-  {date:"2026-05-20",type:"expense",cat:"생활비",memo:"피시방",amount:20000},
-  {date:"2026-05-21",type:"income",cat:"급여",memo:"성민월급",amount:3649790},
-  {date:"2026-05-21",type:"expense",cat:"고정지출",memo:"주담대",amount:677000},
-  {date:"2026-05-21",type:"expense",cat:"고정지출",memo:"손해보험",amount:22420},
-  {date:"2026-05-22",type:"expense",cat:"식비",memo:"쿠팡",amount:23780},
-];
-  let ok = 0;
-  for(const item of data) {
-    try {
-      await addDoc(collection(db,"transactions"), {...item, createdAt: Date.now()});
-      ok++;
-      btn.textContent = "업로드 중... " + ok + "/355";
-    } catch(e) {}
-  }
-  btn.textContent = "완료! " + ok + "건 업로드됨";
-  setTimeout(()=>{ document.getElementById("import-wrap").style.display="none"; }, 3000);
-};
 
 // init
 renderCatGrid();
